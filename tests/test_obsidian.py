@@ -879,18 +879,45 @@ class ActionTests(Base):
                          "open obsidian://adv-uri?vault=p1&filepath=Shopping%20List.md&heading=Dairy&openmode=tab")
 
     def test_vault_obsidian_does_not_know(self):
-        # a vault folder only listed in the Workflow's Configuration: opened by path, never by name
+        # a vault folder only listed in the Workflow's Configuration: obsidian:// URLs can't reach it
         extra = os.path.join(self.tmp, "Second Brain")
-        write(os.path.join(extra, "Meetings", "Design sync.md"), "x")
-        base = dict(vaults=extra, ob_vault=extra)
-        self.assertEqual(self.action("", ob_action="open", ob_rel="Meetings/Design sync.md", **base),
-                         "open obsidian://open?path=" + enc(os.path.join(extra, "Meetings", "Design sync.md")))
-        self.assertEqual(self.action("", ob_action="open", ob_rel="Meetings/Design sync.md", ob_heading="H", **base),
-                         "open obsidian://open?path=" + enc(os.path.join(extra, "Meetings", "Design sync.md")))
+        write(os.path.join(extra, "Meetings", "Design sync.md"), "# Agenda\nx\n")
+        write(os.path.join(extra, ".obsidian", "bookmarks.json"), json.dumps({"items": [{"type": "search", "query": "x"}]}))
+        write(os.path.join(extra, "pic.png"), b"x")
+        msg = "“Second Brain” isn’t open in Obsidian yet: open it once via Open folder as vault, then notes open there."
+        note = os.path.join(extra, "Meetings", "Design sync.md")
+        base = dict(vaults=extra + ", Personal", ob_vault=extra)
+        self.assertEqual(self.action("", ob_action="open", ob_rel="Meetings/Design sync.md", **base), f"default-app {note} · {msg}")
+        self.assertEqual(self.action("", ob_action="open", ob_rel="Meetings/Design sync.md", ob_heading="Agenda", ob_pane="tab", **base),
+                         f"default-app {note} · {msg}")
         self.assertEqual(self.action("", ob_action="create", ob_rel="Meetings/New.md", **base),
-                         "open obsidian://open?path=" + enc(os.path.join(extra, "Meetings", "New.md")))
-        self.assertEqual(self.action("", ob_action="open-vault", **base), "open obsidian://open?path=" + enc(extra))
-        self.assertEqual(self.action("", ob_action="open", ob_vault=self.personal, ob_rel="Gone.md"), "“Gone.md” no longer exists")
+                         f"default-app {os.path.join(extra, 'Meetings', 'New.md')} · {msg}")
+        self.assertEqual(self.action("", ob_action="daily-open", ob_date="2026-09-27", **base),
+                         f"default-app {os.path.join(extra, '2026-09-27.md')} · {msg}")
+        self.index(vaults=base["vaults"])
+        self.assertEqual(self.action("", ob_action="random", OB_TEST_RANDOM="0", **base).split(" · ")[1], msg)
+        self.assertEqual(self.action("", ob_action="open-vault", **base), f"reveal {extra} · {msg}")
+        self.assertEqual(self.action("", ob_action="obsidian-search", ob_text="x", **base), msg)
+        self.assertTrue(self.action("", ob_action="append", ob_rel="Meetings/Design sync.md", ob_text="y", ob_open="1", **base).endswith(msg))
+        # rows say so before ↩, in every keyword
+        env = dict(vaults=extra + ", Personal")
+        self.assertIn("not open in Obsidian yet", self.items("search", "@second design", **env)[0]["subtitle"])
+        self.assertIn("not open in Obsidian yet", self.items("search", "@second agenda", **env)[0]["subtitle"])
+        self.assertIn("not open in Obsidian yet", self.items("daily", "@second", **env)[0]["subtitle"])
+        self.assertIn("not open in Obsidian yet", self.items("new", "@second Idea", **env)[0]["subtitle"])
+        self.assertIn("not open in Obsidian yet", self.items("media", "@second pic", **env)[0]["subtitle"])
+        self.assertIn("not open in Obsidian yet", self.items("bookmarks", "@second", **env)[0]["subtitle"])
+        rows = {i["title"]: i["subtitle"] for i in self.items("vaults", **env)}
+        self.assertIn("not open in Obsidian yet", rows["Second Brain"])
+        self.assertNotIn("not open in Obsidian yet", rows["Personal"])
+        self.assertNotIn("not open in Obsidian yet", self.items("search", "@pers shopping", **env)[0]["subtitle"])
+
+    def test_registered_vault_through_a_symlink(self):
+        link = os.path.join(self.tmp, "link-to-personal")
+        os.symlink(self.personal, link)
+        out = self.action("", ob_action="open", ob_vault=link, ob_rel="Shopping List.md", vaults=link)
+        self.assertEqual(out, "open obsidian://open?path=" + enc(os.path.join(link, "Shopping List.md")))
+        self.assertNotIn("not open in Obsidian yet", self.items("search", "shopping", vaults=link)[0]["subtitle"])
 
     def test_row_to_action_round_trip(self):
         it = self.find(self.items("search", "zurich"), "Zürich Trip")

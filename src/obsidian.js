@@ -415,6 +415,8 @@ let VAULTS = null;
 function vaults() {
   if (VAULTS) return VAULTS;
   const known = knownVaults();
+  const real = (p) => $(p).stringByResolvingSymlinksInPath.js;
+  const knownReal = new Map(known.map((k) => [real(k.path), k]));
   const wanted = splitList(env("vaults", ""));
   const missing = [];
   let list = [];
@@ -424,7 +426,9 @@ function vaults() {
       let v = null;
       if (w.startsWith("/") || w.startsWith("~")) {
         const p = expandPath(w);
-        v = known.find((k) => k.path === p) || (p ? { id: null, path: p, ts: 0, open: false } : null);
+        // registered in Obsidian under the same real path (symlinks, /private/var…)?
+        const k = p ? known.find((x) => x.path === p) || knownReal.get(real(p)) : null;
+        v = k ? Object.assign({}, k, { path: p, id: k.id }) : p ? { id: null, path: p, ts: 0, open: false } : null;
       } else {
         v = known.find((k) => fold(basename(k.path)) === fold(w));
       }
@@ -982,6 +986,16 @@ function embedLink(v, rel, unique, cfg) {
   return "!" + noteLink(v, rel, unique, cfg);
 }
 
+// A vault only this workflow knows (a folder in the Workflow's Configuration that Obsidian never
+// opened): obsidian:// URLs can't reach it
+const NOT_OPEN = "not open in Obsidian yet";
+function notOpenMessage(v) {
+  return `“${oneLine(v.name)}” isn’t open in Obsidian yet: open it once via Open folder as vault, then notes open there.`;
+}
+function unregisteredTag(v) {
+  return v.id ? "" : ` · ${NOT_OPEN}`;
+}
+
 // ---------- rows ----------
 
 function info(title, subtitle, icon = "info", extra = {}) {
@@ -1004,6 +1018,7 @@ function noteSubtitle(n, extra) {
   bits.push(n.folder ? n.folder : "/");
   bits.push(relativeTime(n.m));
   if (n.w) bits.push(plural(n.w, "word", "words"));
+  if (!n.vault.id) bits.push(NOT_OPEN);
   return bits.join(" · ");
 }
 
@@ -1352,7 +1367,7 @@ function newNoteSuggestion(query, v, cfg) {
   const act = { ob_action: "create", ob_vault: v.path, ob_rel: rel, ob_template: defaultTemplate(v, cfg), ob_content: "", ob_tags: p.tags.join("\n"), ob_open: "1" };
   return {
     title: oneLine(`Create “${stripExt(basename(rel))}”`),
-    subtitle: oneLine(`No matching notes · ↩ Create ${rel}${multiVault() ? " in " + v.name : ""}`),
+    subtitle: oneLine(`No matching notes · ↩ Create ${rel}${multiVault() ? " in " + v.name : ""}${unregisteredTag(v)}`),
     arg: rel, valid: true, icon: { path: "icons/new.png" }, variables: act,
     mods: { cmd: mod("", "Create the note first", {}, false) },
   };
@@ -1448,7 +1463,7 @@ function newItems(q) {
   const items = [];
   const exact = `${v.path}/${p.folder ? p.folder + "/" : ""}${p.title}.md`;
   const rel = uniqueRel(v, p.folder, p.title);
-  const where = `${rel}${list.length > 1 ? " in " + v.name : ""}`;
+  const where = `${rel}${list.length > 1 ? " in " + v.name : ""}${unregisteredTag(v)}`;
   const tagText = p.tags.length ? " · " + p.tags.map((t) => "#" + t).join(" ") : "";
   const contentText = p.content ? ` · ${quoted(p.content, 30)}` : "";
   if (exists(exact)) {
@@ -1608,7 +1623,7 @@ function dailyItems(q) {
   const text = chosen ? raw.slice(firstTok.length).replace(/^[ \t]+/, "") : raw;
   const items = [];
   const t = today();
-  const vaultNote = list.length > 1 ? ` · ${v.name}` : "";
+  const vaultNote = (list.length > 1 ? ` · ${v.name}` : "") + unregisteredTag(v);
   const openRow = (d, label) => {
     const rel = dailyRel(v, d);
     const abs = `${v.path}/${rel}`;
@@ -1740,7 +1755,7 @@ function mediaItems(q) {
     return {
       type: "file",
       title: oneLine(basename(f.p)),
-      subtitle: oneLine([multiVault() ? v.name : "", dirname(f.p) || "/", formatSize(f.s), relativeTime(f.m)].filter(Boolean).join(" · ")),
+      subtitle: oneLine([multiVault() ? v.name : "", dirname(f.p) || "/", formatSize(f.s), relativeTime(f.m), v.id ? "" : NOT_OPEN].filter(Boolean).join(" · ")),
       arg: abs,
       icon: { type: "fileicon", path: abs },
       quicklookurl: abs,
@@ -1801,7 +1816,7 @@ function bookmarkItems(q) {
       const rel = typeof b.path === "string" ? b.path : "";
       const sub = typeof b.subpath === "string" ? b.subpath : "";
       let title = typeof b.title === "string" && b.title ? b.title : "";
-      const where = [multiVault() ? v.name : "", b.group].filter(Boolean);
+      const where = [multiVault() ? v.name : "", v.id ? "" : NOT_OPEN, b.group].filter(Boolean);
       let it;
       if (b.type === "file" && rel) {
         const abs = `${v.path}/${rel}`;
@@ -1861,6 +1876,7 @@ function vaultItems(q) {
     const bits = [tilde(v.path)];
     if (idx) bits.push(plural(idx.notes.length, "note", "notes"), `indexed ${relativeTime(Math.max(idx.built, mtime(stampPath(v))))}`);
     else bits.push("not indexed yet");
+    if (!v.id) bits.push(NOT_OPEN);
     if (v === primaryVault(all, cfg) && all.length > 1) bits.push("default");
     items.push({
       type: "file", title: oneLine(v.name), subtitle: oneLine(bits.join(" · ")), arg: v.path, icon: { path: "icons/vault.png" },
@@ -1911,6 +1927,13 @@ function openURL(url) {
 // vault's name isn't what obsidian.json suggests or the vault isn't registered yet. A heading needs
 // vault + file, which only works for a vault Obsidian knows: its ID is used (never ambiguous).
 function openNote(v, rel, pane, sub) {
+  if (!v.id) {
+    // never an obsidian:// URL for a vault Obsidian doesn't know: it would only show "Vault not found"
+    const abs = `${v.path}/${rel}`;
+    if (env("OB_TEST_DRYRUN", "") === "1") return `default-app ${abs} · ${notOpenMessage(v)}`;
+    const ok = $.NSWorkspace.sharedWorkspace.openURL($.NSURL.fileURLWithPath(abs));
+    return ok ? notOpenMessage(v) : `Couldn’t open ${quoted(basename(rel))}. ${notOpenMessage(v)}`;
+  }
   const paneArg = pane && pane !== "current" ? `&paneType=${pane}` : "";
   let url = `obsidian://open?path=${uriEncode(`${v.path}/${rel}`)}${paneArg}`;
   if (sub && v.id) {
@@ -1934,7 +1957,11 @@ function settle() {
 
 function vaultFor(path) {
   const all = vaults().list;
-  return all.find((v) => v.path === path) || (path && isDir(path) ? { id: null, path, name: basename(path), key: hashKey(path), uriVault: basename(path) } : null);
+  const v = all.find((x) => x.path === path);
+  if (v || !path || !isDir(path)) return v || null;
+  const real = (p) => $(p).stringByResolvingSymlinksInPath.js;
+  const k = knownVaults().find((x) => x.path === path || real(x.path) === real(path));
+  return { id: k ? k.id : null, path, name: basename(path), key: hashKey(path), uriVault: basename(path) };
 }
 
 function formatEntry(text, format, cfg) {
@@ -2145,14 +2172,20 @@ function doAction(arg) {
     }
     case "open-vault":
       if (needVault()) return needVault();
-      // a vault Obsidian doesn't know yet: open it by its folder, which registers it
-      return openURL(v.id ? `obsidian://open?vault=${vaultParam(v)}` : `obsidian://open?path=${uriEncode(v.path)}`);
+      if (!v.id) {
+        // Obsidian can't open an unknown folder by URL: show it in Finder instead
+        if (dry) return `reveal ${v.path} · ${notOpenMessage(v)}`;
+        $.NSWorkspace.sharedWorkspace.activateFileViewerSelectingURLs($([$.NSURL.fileURLWithPath(v.path)]));
+        return notOpenMessage(v);
+      }
+      return openURL(`obsidian://open?vault=${vaultParam(v)}`);
     case "choose-vault":
       return openURL("obsidian://choose-vault");
     case "launch":
       return openURL("https://obsidian.md");
     case "obsidian-search":
       if (needVault()) return needVault();
+      if (!v.id) return notOpenMessage(v);
       return openURL(`obsidian://search?vault=${vaultParam(v)}&query=${uriEncode(env("ob_text", ""))}`);
     case "open-url": {
       const u = env("ob_text", "");

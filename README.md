@@ -113,7 +113,7 @@ Search your vaults for selected text via the Universal Action, or configure the 
 
 ### Configuration
 
-In the Workflow’s Configuration you can limit the workflow to some vaults (or add a vault folder Obsidian doesn’t know), choose the vault for new notes and the daily note, open notes in a new tab, split or window, choose the link format, leave folders out of searches, turn off searching the text of notes, and set the append format, a custom format such as `- {{time}} {{text}}`, the daily note heading, the folder and default template for new notes.
+In the Workflow’s Configuration you can limit the workflow to some vaults (or add a vault folder Obsidian doesn’t know: its rows say “not open in Obsidian yet” and notes open in your default Markdown editor until you open the folder once via Open folder as vault), choose the vault for new notes and the daily note, open notes in a new tab, split or window, choose the link format, leave folders out of searches, turn off searching the text of notes, and set the append format, a custom format such as `- {{time}} {{text}}`, the daily note heading, the folder and default template for new notes.
 
 The search index is kept in the workflow’s cache and refreshed in the background while you search, so new and changed notes appear within seconds. Only changed notes are read again. The index of a vault you remove from Obsidian, or leave out in the Workflow’s Configuration, is deleted.
 
