@@ -1,0 +1,671 @@
+{
+  "bundleid": "io.github.x-o-r-r-o.obsidian",
+  "name": "Obsidian",
+  "description": "Search, create and append to notes in all your Obsidian vaults",
+  "category": "Productivity",
+  "createdby": "x-o-r-r-o",
+  "webaddress": "https://github.com/x-o-r-r-o/alfred-obsidian",
+  "version": "1.0.0",
+  "variablesdontexport": [],
+  "config": [
+    {
+      "type": "textfield",
+      "variable": "keyword_search",
+      "label": "Keywords",
+      "description": "Search notes, aliases, headings and contents",
+      "config": {
+        "default": "obs",
+        "placeholder": "obs",
+        "required": true,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "keyword_new",
+      "label": "",
+      "description": "Create a note",
+      "config": {
+        "default": "obn",
+        "placeholder": "obn",
+        "required": true,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "keyword_daily",
+      "label": "",
+      "description": "Daily note: open or append",
+      "config": {
+        "default": "obd",
+        "placeholder": "obd",
+        "required": true,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "keyword_media",
+      "label": "",
+      "description": "Attachments: images, PDFs, audio, video",
+      "config": {
+        "default": "obm",
+        "placeholder": "obm",
+        "required": true,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "keyword_bookmarks",
+      "label": "",
+      "description": "Bookmarks",
+      "config": {
+        "default": "obb",
+        "placeholder": "obb",
+        "required": true,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "keyword_vaults",
+      "label": "",
+      "description": "Vaults and random note",
+      "config": {
+        "default": "obv",
+        "placeholder": "obv",
+        "required": true,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "vaults",
+      "label": "Vaults",
+      "description": "Leave empty to use every vault Obsidian knows. Otherwise vault names or folder paths, separated by commas.",
+      "config": {
+        "default": "",
+        "placeholder": "All vaults",
+        "required": false,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "default_vault",
+      "label": "Default vault",
+      "description": "For new notes and the daily note. Empty: the vault you opened last in Obsidian.",
+      "config": {
+        "default": "",
+        "placeholder": "Last opened vault",
+        "required": false,
+        "trim": true
+      }
+    },
+    {
+      "type": "popupbutton",
+      "variable": "open_in",
+      "label": "Open notes in",
+      "description": "⌃↩ opens in a new tab instead (or in the current tab when this is a new tab, split or window).",
+      "config": {
+        "default": "current",
+        "pairs": [
+          [
+            "The current tab",
+            "current"
+          ],
+          [
+            "A new tab",
+            "tab"
+          ],
+          [
+            "A split pane",
+            "split"
+          ],
+          [
+            "A new window",
+            "window"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "popupbutton",
+      "variable": "link_format",
+      "label": "Links",
+      "description": "Format of copied and pasted links.",
+      "config": {
+        "default": "vault",
+        "pairs": [
+          [
+            "As set in the vault (Files and links)",
+            "vault"
+          ],
+          [
+            "Wikilinks [[Note]]",
+            "wiki"
+          ],
+          [
+            "Markdown [Note](Note.md)",
+            "markdown"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "checkbox",
+      "variable": "search_content",
+      "label": "Search",
+      "description": "",
+      "config": {
+        "default": true,
+        "required": false,
+        "text": "Search the text of notes, not only titles, aliases and headings"
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "excluded_folders",
+      "label": "Excluded folders",
+      "description": "Folders to leave out of searches, separated by commas. Obsidian’s own Excluded files are always left out.",
+      "config": {
+        "default": "",
+        "placeholder": "Archive, Templates",
+        "required": false,
+        "trim": true
+      }
+    },
+    {
+      "type": "popupbutton",
+      "variable": "append_format",
+      "label": "Append as",
+      "description": "How appended text is written. The other formats are on ⌥, ⌃ and fn.",
+      "config": {
+        "default": "bullet",
+        "pairs": [
+          [
+            "Bullet: - text",
+            "bullet"
+          ],
+          [
+            "Task: - [ ] text",
+            "task"
+          ],
+          [
+            "Bullet with the time: - 14:05 text",
+            "time"
+          ],
+          [
+            "Paragraph",
+            "plain"
+          ],
+          [
+            "Custom format (below)",
+            "custom"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "append_custom",
+      "label": "Custom format",
+      "description": "Used when “Append as” is Custom. {{text}} is the text; {{time}}, {{date}} and {{date:FORMAT}} work too.",
+      "config": {
+        "default": "",
+        "placeholder": "- {{time}} {{text}}",
+        "required": false,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "daily_heading",
+      "label": "Daily note heading",
+      "description": "Append under this heading of the daily note (created when missing), e.g. “## Log”. Empty: at the end.",
+      "config": {
+        "default": "",
+        "placeholder": "At the end of the note",
+        "required": false,
+        "trim": true
+      }
+    },
+    {
+      "type": "checkbox",
+      "variable": "open_after_append",
+      "label": "After appending",
+      "description": "",
+      "config": {
+        "default": false,
+        "required": false,
+        "text": "Open the note in Obsidian"
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "new_note_folder",
+      "label": "New notes folder",
+      "description": "Folder for new notes, relative to the vault. Empty: as set in Obsidian (Files and links › Default location for new notes).",
+      "config": {
+        "default": "",
+        "placeholder": "As set in Obsidian",
+        "required": false,
+        "trim": true
+      }
+    },
+    {
+      "type": "textfield",
+      "variable": "new_note_template",
+      "label": "New note template",
+      "description": "Name of the template in the vault’s templates folder that new notes use by default. Empty: a blank note.",
+      "config": {
+        "default": "",
+        "placeholder": "Blank note",
+        "required": false,
+        "trim": true
+      }
+    }
+  ],
+  "objects": [
+    {
+      "id": "sf_search",
+      "type": "scriptfilter",
+      "keyword": "{var:keyword_search}",
+      "title": "Search Obsidian",
+      "subtext": "Notes, aliases, headings and contents",
+      "script": "osascript -l JavaScript ./obsidian.js search \"$1\"",
+      "trimmode": 1,
+      "running": "Searching…"
+    },
+    {
+      "id": "sf_new",
+      "type": "scriptfilter",
+      "keyword": "{var:keyword_new}",
+      "title": "New Obsidian Note",
+      "subtext": "Title, Folder/Title, #tags, > content",
+      "script": "osascript -l JavaScript ./obsidian.js new \"$1\""
+    },
+    {
+      "id": "sf_daily",
+      "type": "scriptfilter",
+      "keyword": "{var:keyword_daily}",
+      "title": "Obsidian Daily Note",
+      "subtext": "Open today’s note, or type to append",
+      "script": "osascript -l JavaScript ./obsidian.js daily \"$1\"",
+      "trimmode": 1
+    },
+    {
+      "id": "sf_media",
+      "type": "scriptfilter",
+      "keyword": "{var:keyword_media}",
+      "title": "Obsidian Attachments",
+      "subtext": "Images, PDFs, audio and video in your vaults",
+      "script": "osascript -l JavaScript ./obsidian.js media \"$1\""
+    },
+    {
+      "id": "sf_bookmarks",
+      "type": "scriptfilter",
+      "keyword": "{var:keyword_bookmarks}",
+      "title": "Obsidian Bookmarks",
+      "subtext": "Bookmarked notes, headings, searches and links",
+      "script": "osascript -l JavaScript ./obsidian.js bookmarks \"$1\""
+    },
+    {
+      "id": "sf_vaults",
+      "type": "scriptfilter",
+      "keyword": "{var:keyword_vaults}",
+      "title": "Obsidian Vaults",
+      "subtext": "Open a vault or a random note",
+      "script": "osascript -l JavaScript ./obsidian.js vaults \"$1\""
+    },
+    {
+      "id": "ua_search",
+      "type": "universalaction",
+      "name": "Search in Obsidian",
+      "text": true
+    },
+    {
+      "id": "ua_append",
+      "type": "universalaction",
+      "name": "Append to Daily Note",
+      "text": true
+    },
+    {
+      "id": "ua_new",
+      "type": "universalaction",
+      "name": "New Obsidian Note",
+      "text": true
+    },
+    {
+      "id": "arg_new",
+      "type": "argument",
+      "argument": "> {query}",
+      "note": "The selection becomes the content; its first line the title"
+    },
+    {
+      "id": "hk_search",
+      "type": "hotkey",
+      "note": "Search Obsidian"
+    },
+    {
+      "id": "hk_today",
+      "type": "hotkey",
+      "note": "Open today’s daily note"
+    },
+    {
+      "id": "arg_today",
+      "type": "argument",
+      "argument": "",
+      "variables": {
+        "ob_action": "daily-open"
+      }
+    },
+    {
+      "id": "hk_capture",
+      "type": "hotkey",
+      "argument": 1,
+      "note": "Append the selected text to today’s daily note"
+    },
+    {
+      "id": "arg_capture",
+      "type": "argument",
+      "argument": "{query}",
+      "variables": {
+        "ob_action": "daily-append"
+      }
+    },
+    {
+      "id": "act",
+      "type": "script",
+      "script": "osascript -l JavaScript ./obsidian.js action \"$1\"",
+      "note": "Open, append, create, copy… (the action is in $ob_action)"
+    },
+    {
+      "id": "paste",
+      "type": "clipboard",
+      "autopaste": true
+    },
+    {
+      "id": "notify",
+      "type": "notification"
+    }
+  ],
+  "connections": [
+    {
+      "from": "sf_search",
+      "to": "act"
+    },
+    {
+      "from": "sf_search",
+      "to": "act",
+      "mod": "alt"
+    },
+    {
+      "from": "sf_search",
+      "to": "act",
+      "mod": "ctrl"
+    },
+    {
+      "from": "sf_search",
+      "to": "act",
+      "mod": "shift"
+    },
+    {
+      "from": "sf_search",
+      "to": "act",
+      "mod": "fn"
+    },
+    {
+      "from": "sf_search",
+      "to": "act",
+      "mod": "cmd+alt"
+    },
+    {
+      "from": "sf_search",
+      "to": "act",
+      "mod": "cmd+shift"
+    },
+    {
+      "from": "sf_search",
+      "to": "paste",
+      "mod": "cmd"
+    },
+    {
+      "from": "sf_new",
+      "to": "act"
+    },
+    {
+      "from": "sf_new",
+      "to": "act",
+      "mod": "alt"
+    },
+    {
+      "from": "sf_new",
+      "to": "act",
+      "mod": "ctrl"
+    },
+    {
+      "from": "sf_new",
+      "to": "act",
+      "mod": "shift"
+    },
+    {
+      "from": "sf_new",
+      "to": "act",
+      "mod": "fn"
+    },
+    {
+      "from": "sf_new",
+      "to": "act",
+      "mod": "cmd+alt"
+    },
+    {
+      "from": "sf_new",
+      "to": "act",
+      "mod": "cmd+shift"
+    },
+    {
+      "from": "sf_new",
+      "to": "paste",
+      "mod": "cmd"
+    },
+    {
+      "from": "sf_daily",
+      "to": "act"
+    },
+    {
+      "from": "sf_daily",
+      "to": "act",
+      "mod": "alt"
+    },
+    {
+      "from": "sf_daily",
+      "to": "act",
+      "mod": "ctrl"
+    },
+    {
+      "from": "sf_daily",
+      "to": "act",
+      "mod": "shift"
+    },
+    {
+      "from": "sf_daily",
+      "to": "act",
+      "mod": "fn"
+    },
+    {
+      "from": "sf_daily",
+      "to": "act",
+      "mod": "cmd+alt"
+    },
+    {
+      "from": "sf_daily",
+      "to": "act",
+      "mod": "cmd+shift"
+    },
+    {
+      "from": "sf_daily",
+      "to": "paste",
+      "mod": "cmd"
+    },
+    {
+      "from": "sf_media",
+      "to": "act"
+    },
+    {
+      "from": "sf_media",
+      "to": "act",
+      "mod": "alt"
+    },
+    {
+      "from": "sf_media",
+      "to": "act",
+      "mod": "ctrl"
+    },
+    {
+      "from": "sf_media",
+      "to": "act",
+      "mod": "shift"
+    },
+    {
+      "from": "sf_media",
+      "to": "act",
+      "mod": "fn"
+    },
+    {
+      "from": "sf_media",
+      "to": "act",
+      "mod": "cmd+alt"
+    },
+    {
+      "from": "sf_media",
+      "to": "act",
+      "mod": "cmd+shift"
+    },
+    {
+      "from": "sf_media",
+      "to": "paste",
+      "mod": "cmd"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "act"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "act",
+      "mod": "alt"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "act",
+      "mod": "ctrl"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "act",
+      "mod": "shift"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "act",
+      "mod": "fn"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "act",
+      "mod": "cmd+alt"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "act",
+      "mod": "cmd+shift"
+    },
+    {
+      "from": "sf_bookmarks",
+      "to": "paste",
+      "mod": "cmd"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "act"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "act",
+      "mod": "alt"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "act",
+      "mod": "ctrl"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "act",
+      "mod": "shift"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "act",
+      "mod": "fn"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "act",
+      "mod": "cmd+alt"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "act",
+      "mod": "cmd+shift"
+    },
+    {
+      "from": "sf_vaults",
+      "to": "paste",
+      "mod": "cmd"
+    },
+    {
+      "from": "ua_search",
+      "to": "sf_search"
+    },
+    {
+      "from": "ua_append",
+      "to": "sf_daily"
+    },
+    {
+      "from": "ua_new",
+      "to": "arg_new"
+    },
+    {
+      "from": "arg_new",
+      "to": "sf_new"
+    },
+    {
+      "from": "hk_search",
+      "to": "sf_search"
+    },
+    {
+      "from": "hk_today",
+      "to": "arg_today"
+    },
+    {
+      "from": "arg_today",
+      "to": "act"
+    },
+    {
+      "from": "hk_capture",
+      "to": "arg_capture"
+    },
+    {
+      "from": "arg_capture",
+      "to": "act"
+    },
+    {
+      "from": "act",
+      "to": "notify"
+    }
+  ]
+}
