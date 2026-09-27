@@ -257,6 +257,9 @@ class SearchTests(Base):
         self.assertFalse(items[0]["valid"])
         self.assertEqual(items[1]["title"], "Shopping List")
         self.assertEqual(self.items("search", "#shopping/weekly ")[0]["title"], "Shopping List")  # a space ends the tag
+        every = self.titles("search", "#")
+        self.assertEqual(every[:3], ["#home", "#project/alpha", "#real-tag"])  # all tags, most used first, then by name
+        self.assertIn("#travel", every)
 
     def test_folder_and_vault_filters(self):
         self.assertEqual(self.titles("search", "/projects"), ["Zürich Trip", "Plan"])

@@ -45,6 +45,8 @@ When nothing matches, <kbd>↩</kbd> creates a note with that name.
 
 Open today’s daily note via the `obd` keyword, or yesterday’s or tomorrow’s. It is created from your daily note template when it doesn’t exist yet, in the folder and date format set in Obsidian’s Daily notes (or Periodic Notes) settings. Type `obd yesterday`, `obd tomorrow` or a date like `obd 2026-01-05` for another day.
 
+On a day’s row, <kbd>⌘</kbd><kbd>↩</kbd> pastes a link to it, <kbd>⌥</kbd><kbd>↩</kbd> reveals it in Finder and <kbd>⌃</kbd><kbd>↩</kbd> opens it in a new tab.
+
 Type text after the keyword to append it to today’s daily note, like `obd call the bank`. The same modifiers as above choose the format. Set a heading in the Workflow’s Configuration, like `## Log`, to add entries under it. Start with `@vault` to use another vault.
 
 ![Appending to the daily note](images/daily.png)
@@ -76,6 +78,7 @@ Find images, PDFs, audio, video and other files in your vaults via the `obm` key
 * <kbd>⌘</kbd><kbd>↩</kbd> Paste an embed like `![[photo.png]]` into the frontmost app.
 * <kbd>⌥</kbd><kbd>↩</kbd> Reveal in Finder.
 * <kbd>⌃</kbd><kbd>↩</kbd> Copy the file to the clipboard.
+* <kbd>⇧</kbd><kbd>↩</kbd> Open in a new tab.
 * <kbd>fn</kbd><kbd>↩</kbd> Open in the default app.
 
 ![Searching attachments](images/media.png)

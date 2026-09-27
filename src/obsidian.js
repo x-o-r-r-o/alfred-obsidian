@@ -25,7 +25,7 @@ const REFRESH_AFTER = 10; // seconds: an older index is refreshed in the backgro
 const INDEX_STALE = 1800; // seconds: lock backstop (the owner's PID is checked first)
 const MAX_FILES = 200000; // per vault
 const MAX_CONTENT = 200000; // characters of a note kept for content search
-const INDEX_VERSION = 3;
+const INDEX_VERSION = 4;
 
 // ---------- configuration ----------
 
@@ -683,7 +683,7 @@ function walkVault(root) {
       const p = rel ? `${rel}/${r.name}` : r.name;
       if (r.type === VDIR) queue.push(p);
       else if (r.type === VREG) {
-        const e = { p, m: Math.floor(r.modified), s: r.size, c: Math.floor(r.created) };
+        const e = { p, m: Math.floor(r.modified), s: r.size };
         if (r.dataless) e.d = 1; // in iCloud only: reading it would download it
         (NOTE_EXT.has(extOf(r.name)) ? notes : media).push(e);
       }
@@ -775,7 +775,8 @@ function parseNote(text) {
 }
 
 // ---------- the index ----------
-// index-<key>.json: { v, root, built, notes: [{p, m, s, c, w, a, t, h, x}], media: [{p, m, s}] }
+// index-<key>.json: { v, root, built, notes: [{p, m, s, w, a, t, h, x, d}], media: [{p, m, s, d}] }
+// (path, mtime, size, words, aliases, tags, headings, x = not read yet, d = in iCloud only)
 // content-<key>.txt: one line per note: "<key>\t<path>\t<folded text>", searched with grep
 // stamp-<key>: touched after every refresh (its mtime tells when the index was last checked)
 
@@ -1084,6 +1085,7 @@ function parseSearch(q) {
   const typing = !/\s$/.test(q);
   const tags = [], folders = [], words = [];
   tokens.forEach((t, i) => {
+    if (t === "#") return; // a tag about to be typed: suggestions only
     if (t.length > 1 && t.startsWith("#")) tags.push({ tag: fold(t.slice(1)).replace(/\/+$/, ""), prefix: typing && i === tokens.length - 1 });
     else if (t.length > 1 && t.startsWith("/")) folders.push(fold(t.slice(1)).replace(/\/+$/, ""));
     else words.push(t);
@@ -1194,11 +1196,18 @@ function searchItems(rawQuery) {
   // tag suggestions while a tag is being typed
   const lastTok = query.trim().split(/\s+/).pop() || "";
   if (!inAppend && !trailingSpace && lastTok.startsWith("#") && !words.length) {
-    const counts = new Map();
+    const counts = new Map(); // folded tag -> [shown as, count]
     const partial = fold(lastTok.slice(1));
-    for (const n of prepared) for (const t of new Set(n.t)) if (fold(t).startsWith(partial)) counts.set(t, (counts.get(t) || 0) + 1);
+    for (const n of prepared) {
+      for (const f of new Set(n.t.map(fold))) {
+        if (!f.startsWith(partial)) continue;
+        const e = counts.get(f);
+        if (e) e[1]++;
+        else counts.set(f, [n.t.find((t) => fold(t) === f), 1]);
+      }
+    }
     const head = query.trim().slice(0, query.trim().length - lastTok.length);
-    [...counts.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, partial ? 6 : 12).forEach(([t, c]) => {
+    [...counts.values()].sort((a, b) => b[1] - a[1] || (fold(a[0]) < fold(b[0]) ? -1 : 1)).slice(0, partial ? 6 : 12).forEach(([t, c]) => {
       items.push(info(`#${t}`, `${plural(c, "note", "notes")} · ⇥ to filter by this tag`, "tag", { autocomplete: `${head}#${t} `, valid: false }));
     });
   }
