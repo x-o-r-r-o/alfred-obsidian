@@ -44,12 +44,16 @@ The Raycast extension reads the vault directly but searches contents only when t
 - Content search matches words anywhere in the text, not phrases; results are ordered by modification date. Notes are searched up to 200,000 characters.
 - The index is refreshed while you search, so a note created in Obsidian shows up on the next keystroke after ~10 s at most (immediately after creating or appending through the workflow).
 - Symbolic links inside a vault aren’t followed.
+- A heading row of a vault Obsidian doesn’t know (only listed in the Workflow’s Configuration) opens the note at the top: jumping to a heading needs the vault’s ID from `obsidian.json`.
+- Copied Obsidian URIs (⌘⌥↩, ⌘⇧↩) use the vault name, like Obsidian’s own “Copy Obsidian URL”, so they are shareable; opening from Alfred uses the file path instead.
 - Vaults whose configuration folder was renamed (Settings › Files and links › Override config folder) use default settings.
 
 ## Verify in real Alfred
 - [ ] `obs` rows keep their selection while “Updating the index…” reruns (uids), and the first search of a new vault shows “Indexing…” and then results.
-- [ ] `obsidian://open?vault=…&file=Note.md` opens the note; `&paneType=tab|split|window` opens a new tab, split and window (Obsidian 1.5+).
-- [ ] `file=Note%23Heading` scrolls to the heading without Advanced URI; with Advanced URI installed, `adv-uri … &heading=` works and `openmode=tab`.
+- [x] Real-Alfred test of 1.0.0 (Alfred 5.8.1, Obsidian 1.13.7): search, #tag, recents, `obd` append and `obn` create work. Opening a note of a vault Obsidian doesn't know failed with “Vault not found” (fixed in 1.0.1).
+- [ ] 1.0.1: `obsidian://open?path=<absolute path>` opens notes of registered vaults and of a vault Obsidian doesn’t know yet (it should open/register that vault); `&paneType=tab|split|window` works together with `path`.
+- [ ] Headings: `obsidian://open?vault=<vault ID>&file=Note.md%23Heading` scrolls to the heading; with Advanced URI, `adv-uri?vault=<ID>… &heading=` and `openmode=tab`.
+- [ ] `obv` ↩ on a vault listed only in the Workflow’s Configuration (`open?path=<vault folder>`).
 - [ ] Creating a note or a daily note and opening it right away (0.4 s delay) opens the new file rather than an empty “not found” note, with Obsidian running and with it closed.
 - [ ] Appending to a note that is open in Obsidian: Obsidian reloads it and shows the new line; nothing is lost when Obsidian saves.
 - [ ] ⌘↩ pastes the link into the frontmost app (Alfred’s clipboard object with auto-paste); ⌘C copies it.
@@ -73,9 +77,12 @@ The Raycast extension reads the vault directly but searches contents only when t
 - [x] No self-updater, no network access, no downloads or installs, no compiled binaries
 - [x] No hard-coded paths; `prefs.plist` git-ignored; nothing secret stored
 - [x] AI assistance disclosed
-- [x] Version 1.0.0; `python3 tools/build.py --package` builds `dist/alfred-obsidian-1.0.0.alfredworkflow`
+- [x] Version 1.0.1; `python3 tools/build.py --package` builds `dist/alfred-obsidian-1.0.1.alfredworkflow`
 - [ ] GitHub release with the `.alfredworkflow` attached (by the author)
 - [ ] Forum post in “Share your Workflows” (by the author)
+
+## Changes
+- **1.0.1** Notes, daily notes, new notes, bookmarks and random notes open with `obsidian://open?path=`, so a vault whose name Obsidian doesn’t match (or doesn’t know yet) no longer shows “Vault not found”; headings, vault search and opening a vault use the vault’s ID. The background refresh deletes the index of every vault no longer listed (removed from Obsidian or left out in the Workflow’s Configuration), unless `obsidian.json` can’t be read.
 
 ## Ideas for v1.1
 1. Backlinks and outgoing links of a note (Shimmering’s ⇧↩ link browser) from the index (parse `[[links]]` while indexing).

@@ -32,6 +32,12 @@ def read(path):
         return f.read()
 
 
+def enc(s):
+    """encodeURIComponent, as the workflow encodes obsidian:// parameters"""
+    from urllib.parse import quote
+    return quote(s, safe="-_.~")
+
+
 def read_pasteboard():
     script = """
 ObjC.import('AppKit');
@@ -468,6 +474,24 @@ class IndexTests(Base):
         while any(f.endswith(".lock") for f in os.listdir(self.cache)) and time.time() < deadline:
             time.sleep(0.2)  # let the indexer finish before the folder is removed
 
+    def test_indexes_of_removed_vaults_are_deleted(self):
+        self.index()
+        self.assertEqual(len([f for f in os.listdir(self.cache) if f.startswith("index-")]), 2)
+        del self.vaults["w2"]
+        self.save_vaults()
+        self.js(["index"])  # the background job, run in the foreground
+        left = sorted(f.split("-")[0] for f in os.listdir(self.cache) if not f.endswith(".lock"))
+        self.assertEqual(left, ["content", "index", "stamp"])
+        self.assertEqual(self.index_of(self.personal)["root"], self.personal)
+        # limiting the vaults in the Workflow's Configuration also drops the others' indexes
+        self.index(vaults="Nope")
+        self.assertEqual([f for f in os.listdir(self.cache) if f.startswith(("index-", "content-", "stamp-"))], [])
+        # an unreadable obsidian.json (e.g. being written) keeps them
+        self.index()
+        write(os.path.join(self.app, "obsidian.json"), "{half")
+        self.index()
+        self.assertEqual(len([f for f in os.listdir(self.cache) if f.startswith("index-")]), 1)
+
     def test_big_first_index_publishes_names_first(self):
         for i in range(320):
             write(self.P("Bulk", f"Bulk {i}.md"), f"# Bulk {i}\nbody {i}\n")
@@ -530,7 +554,7 @@ class DailyTests(Base):
 
     def test_open_creates_from_template(self):
         out = self.action("x", ob_action="daily-open", ob_vault=self.personal, ob_date="2026-09-27")
-        self.assertEqual(out, "open obsidian://open?vault=Personal&file=Daily%2F2026-09-27")
+        self.assertEqual(out, "open obsidian://open?path=" + enc(self.P("Daily", "2026-09-27.md")))
         text = read(self.P("Daily", "2026-09-27.md"))
         self.assertEqual(text, "# Sunday, September 27th 2026\ntitle=2026-09-27 date=2026-09-27\n\n## Log\n")
         write(self.P("Daily", "2026-09-27.md"), "mine")
@@ -610,7 +634,7 @@ class DailyTests(Base):
         self.assertEqual(rows[0]["variables"]["ob_vault"], self.work)
         self.assertEqual(rows[0]["variables"]["ob_text"], "fix bug")
         out = self.append("x", open_after_append="1")
-        self.assertEqual(out, "open obsidian://open?vault=Personal&file=Daily%2F2026-09-27")
+        self.assertEqual(out, "open obsidian://open?path=" + enc(self.P("Daily", "2026-09-27.md")))
         self.assertEqual(self.append("  "), "Nothing to append")
 
     def test_append_rows(self):
@@ -679,7 +703,7 @@ class NewNoteTests(Base):
 
     def test_create_blank_and_open(self):
         out = self.create("New/Deep/Idea.md", ob_content="hello")
-        self.assertEqual(out, "open obsidian://open?vault=Personal&file=New%2FDeep%2FIdea")
+        self.assertEqual(out, "open obsidian://open?path=" + enc(self.P("New", "Deep", "Idea.md")))
         self.assertEqual(read(self.P("New", "Deep", "Idea.md")), "hello\n")
         self.assertEqual(self.create("Quiet.md", ob_open="0"), "Created Quiet")
         self.assertEqual(read(self.P("Quiet.md")), "")
@@ -769,7 +793,7 @@ class MediaTests(Base):
         self.assertEqual(it["mods"]["ctrl"]["variables"]["ob_action"], "copy-file")
         self.assertEqual(it["variables"]["ob_rel"], "Attachments/photo.png")
         out = self.action(it["arg"], **it["variables"])
-        self.assertEqual(out, "open obsidian://open?vault=Personal&file=Attachments%2Fphoto.png")
+        self.assertEqual(out, "open obsidian://open?path=" + enc(self.P("Attachments", "photo.png")))
 
 
 class BookmarkTests(Base):
@@ -803,9 +827,9 @@ class BookmarkTests(Base):
 
     def test_actions(self):
         items = self.items("bookmarks", "@pers")
-        self.assertEqual(self.action(items[3]["arg"], **items[3]["variables"]), "open obsidian://search?vault=Personal&query=tag%3A%23project")
+        self.assertEqual(self.action(items[3]["arg"], **items[3]["variables"]), "open obsidian://search?vault=p1&query=tag%3A%23project")
         self.assertEqual(self.action(items[5]["arg"], **items[5]["variables"]), "open https://obsidian.md/help")
-        self.assertEqual(self.action(items[1]["arg"], **items[1]["variables"]), "open obsidian://open?vault=Personal&file=Shopping%20List%23Dairy")
+        self.assertEqual(self.action(items[1]["arg"], **items[1]["variables"]), "open obsidian://open?vault=p1&file=Shopping%20List.md%23Dairy")
 
     def test_starred_fallback_and_empty(self):
         os.remove(self.P(".obsidian", "bookmarks.json"))
@@ -829,9 +853,9 @@ class VaultTests(Base):
 
     def test_actions(self):
         self.index()
-        self.assertEqual(self.action("", ob_action="open-vault", ob_vault=self.work), "open obsidian://open?vault=Work%20%C3%9Cn%C3%AF")
+        self.assertEqual(self.action("", ob_action="open-vault", ob_vault=self.work), "open obsidian://open?vault=w2")
         out = self.action("", ob_action="random", ob_vault=self.work, OB_TEST_RANDOM="1")
-        self.assertTrue(out.startswith("open obsidian://open?vault=Work%20%C3%9Cn%C3%AF&file="), out)
+        self.assertTrue(out.startswith("open obsidian://open?path=" + enc(self.work + "/")), out)
         out = self.action("", ob_action="random", ob_reveal="1", OB_TEST_RANDOM="0")
         self.assertTrue(out.startswith("reveal " + self.tmp), out)
         self.assertEqual(self.action("", ob_action="choose-vault"), "open obsidian://choose-vault")
@@ -844,19 +868,34 @@ class VaultTests(Base):
 class ActionTests(Base):
     def test_open_panes_and_headings(self):
         base = dict(ob_action="open", ob_vault=self.personal, ob_rel="Shopping List.md")
-        self.assertEqual(self.action("", **base), "open obsidian://open?vault=Personal&file=Shopping%20List")
-        self.assertEqual(self.action("", ob_pane="tab", **base), "open obsidian://open?vault=Personal&file=Shopping%20List&paneType=tab")
-        self.assertEqual(self.action("", open_in="window", **base), "open obsidian://open?vault=Personal&file=Shopping%20List&paneType=window")
-        self.assertEqual(self.action("", ob_heading="Dairy", **base), "open obsidian://open?vault=Personal&file=Shopping%20List%23Dairy")
+        path = "open obsidian://open?path=" + enc(self.P("Shopping List.md"))
+        self.assertEqual(self.action("", **base), path)
+        self.assertEqual(self.action("", ob_pane="tab", **base), path + "&paneType=tab")
+        self.assertEqual(self.action("", open_in="window", **base), path + "&paneType=window")
+        # a heading needs vault + file: the vault's ID from obsidian.json
+        self.assertEqual(self.action("", ob_heading="Dairy", **base), "open obsidian://open?vault=p1&file=Shopping%20List.md%23Dairy")
         write(self.P(".obsidian", "community-plugins.json"), json.dumps(["obsidian-advanced-uri"]))
         self.assertEqual(self.action("", ob_heading="Dairy", ob_pane="tab", **base),
-                         "open obsidian://adv-uri?vault=Personal&filepath=Shopping%20List.md&heading=Dairy&openmode=tab")
+                         "open obsidian://adv-uri?vault=p1&filepath=Shopping%20List.md&heading=Dairy&openmode=tab")
+
+    def test_vault_obsidian_does_not_know(self):
+        # a vault folder only listed in the Workflow's Configuration: opened by path, never by name
+        extra = os.path.join(self.tmp, "Second Brain")
+        write(os.path.join(extra, "Meetings", "Design sync.md"), "x")
+        base = dict(vaults=extra, ob_vault=extra)
+        self.assertEqual(self.action("", ob_action="open", ob_rel="Meetings/Design sync.md", **base),
+                         "open obsidian://open?path=" + enc(os.path.join(extra, "Meetings", "Design sync.md")))
+        self.assertEqual(self.action("", ob_action="open", ob_rel="Meetings/Design sync.md", ob_heading="H", **base),
+                         "open obsidian://open?path=" + enc(os.path.join(extra, "Meetings", "Design sync.md")))
+        self.assertEqual(self.action("", ob_action="create", ob_rel="Meetings/New.md", **base),
+                         "open obsidian://open?path=" + enc(os.path.join(extra, "Meetings", "New.md")))
+        self.assertEqual(self.action("", ob_action="open-vault", **base), "open obsidian://open?path=" + enc(extra))
         self.assertEqual(self.action("", ob_action="open", ob_vault=self.personal, ob_rel="Gone.md"), "“Gone.md” no longer exists")
 
     def test_row_to_action_round_trip(self):
         it = self.find(self.items("search", "zurich"), "Zürich Trip")
         self.assertEqual(self.action(it["arg"], **it["variables"]),
-                         "open obsidian://open?vault=Personal&file=Projects%2FZ%C3%BCrich%20Trip")
+                         "open obsidian://open?path=" + enc(self.P("Projects", "Zürich Trip.md")))
         m = it["mods"]["alt"]
         self.assertEqual(self.action(m["arg"], **m["variables"]), "reveal " + self.P("Projects", "Zürich Trip.md"))
         m = it["mods"]["cmd+alt"]

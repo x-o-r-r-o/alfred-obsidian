@@ -393,8 +393,10 @@ function appSupport() {
 }
 
 // Vaults Obsidian knows, open ones first, then the most recently opened.
+let CONFIG_READ = false; // obsidian.json was read and parsed
 function knownVaults() {
   const j = readJSON(`${appSupport()}/obsidian.json`);
+  CONFIG_READ = !!(j && typeof j === "object");
   const out = [];
   if (j && j.vaults && typeof j.vaults === "object") {
     for (const id of Object.keys(j.vaults)) {
@@ -867,12 +869,26 @@ function buildIndex(v) {
   return true;
 }
 
+// Remove the index files of vaults no longer listed (removed from Obsidian, or left out in the
+// Workflow's Configuration), so no copy of their notes stays in the cache
+function pruneIndexes() {
+  const keep = new Set(vaults().list.map((v) => v.key));
+  const names = FM.contentsOfDirectoryAtPathError(cacheDir(), $());
+  if (names.isNil()) return;
+  for (const name of ObjC.deepUnwrap(names)) {
+    const m = /^(?:index-([0-9a-f]{8})\.json|content-([0-9a-f]{8})\.txt|stamp-([0-9a-f]{8}))$/.exec(name);
+    if (m && !keep.has(m[1] || m[2] || m[3])) removeFile(`${cacheDir()}/${name}`);
+  }
+}
+
 // Background job: refresh every vault's index
 function runIndexer() {
   $.setsid();
   const lock = tryLock("index", INDEX_STALE);
   if (!lock) return;
   try {
+    // an unreadable or half-written obsidian.json lists no vaults: keep the indexes then
+    if (vaults().list.length || CONFIG_READ) pruneIndexes();
     for (const v of vaults().list) {
       try {
         buildIndex(v);
@@ -1891,15 +1907,24 @@ function openURL(url) {
   return ws.openURL(u) ? "" : "Couldn’t open the link";
 }
 
+// Open a note. By absolute path: Obsidian finds (and opens) the vault that holds it, even when the
+// vault's name isn't what obsidian.json suggests or the vault isn't registered yet. A heading needs
+// vault + file, which only works for a vault Obsidian knows: its ID is used (never ambiguous).
 function openNote(v, rel, pane, sub) {
-  let url;
-  if (sub && vconf(v).advancedUri && !sub.startsWith("^")) {
-    url = `obsidian://adv-uri?vault=${uriEncode(v.uriVault)}&filepath=${uriEncode(rel)}&heading=${uriEncode(sub)}${pane !== "current" ? "&openmode=" + pane : ""}`;
-  } else {
-    url = obsidianURI(v, rel, sub ? "#" + sub : "");
-    if (pane && pane !== "current") url += `&paneType=${pane}`;
+  const paneArg = pane && pane !== "current" ? `&paneType=${pane}` : "";
+  let url = `obsidian://open?path=${uriEncode(`${v.path}/${rel}`)}${paneArg}`;
+  if (sub && v.id) {
+    if (vconf(v).advancedUri && !sub.startsWith("^")) {
+      url = `obsidian://adv-uri?vault=${uriEncode(v.id)}&filepath=${uriEncode(rel)}&heading=${uriEncode(sub)}${pane !== "current" ? "&openmode=" + pane : ""}`;
+    } else {
+      url = `obsidian://open?vault=${uriEncode(v.id)}&file=${uriEncode(rel + "#" + sub)}${paneArg}`;
+    }
   }
   return openURL(url);
+}
+// The vault parameter for other obsidian:// actions: the ID when Obsidian knows the vault
+function vaultParam(v) {
+  return uriEncode(v.id || v.name);
 }
 
 // Obsidian notices new files within a moment; open them only after it has
@@ -2120,14 +2145,15 @@ function doAction(arg) {
     }
     case "open-vault":
       if (needVault()) return needVault();
-      return openURL(`obsidian://open?vault=${uriEncode(v.uriVault)}`);
+      // a vault Obsidian doesn't know yet: open it by its folder, which registers it
+      return openURL(v.id ? `obsidian://open?vault=${vaultParam(v)}` : `obsidian://open?path=${uriEncode(v.path)}`);
     case "choose-vault":
       return openURL("obsidian://choose-vault");
     case "launch":
       return openURL("https://obsidian.md");
     case "obsidian-search":
       if (needVault()) return needVault();
-      return openURL(`obsidian://search?vault=${uriEncode(v.uriVault)}&query=${uriEncode(env("ob_text", ""))}`);
+      return openURL(`obsidian://search?vault=${vaultParam(v)}&query=${uriEncode(env("ob_text", ""))}`);
     case "open-url": {
       const u = env("ob_text", "");
       if (!/^[a-z][a-z0-9+.-]*:/i.test(u) || /^(javascript|data|vbscript):/i.test(u)) return "Couldn’t open the link";
@@ -2181,6 +2207,7 @@ function run(argv) {
         runIndexer();
         return undefined;
       case "index-now": // tests: build synchronously
+        if (vaults().list.length || CONFIG_READ) pruneIndexes();
         for (const v of vaults().list) buildIndex(v);
         return undefined;
       // an empty result prints nothing, so the Notification (only when populated) stays quiet
