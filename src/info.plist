@@ -1246,7 +1246,7 @@ Search your notes via the `obs` keyword. Titles, aliases, headings and the text 
 * &lt;kbd&gt;⌘&lt;/kbd&gt;&lt;kbd&gt;C&lt;/kbd&gt; Copy a link to the note.
 * &lt;kbd&gt;⌘&lt;/kbd&gt;&lt;kbd&gt;Y&lt;/kbd&gt; Quick Look the note.
 
-A matching heading gets its own row, which opens the note at that heading and links to it (`[[Note#Heading]]`). Links follow the vault’s “Use [[Wikilinks]]” setting.
+A heading that matches gets its own row (when its note’s name doesn’t already match), which opens the note at that heading and links to it (`[[Note#Heading]]`). Links follow the vault’s “Use [[Wikilinks]]” setting.
 
 Narrow the search while you type:
 

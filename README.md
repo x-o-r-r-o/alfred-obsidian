@@ -19,7 +19,7 @@ Search your notes via the `obs` keyword. Titles, aliases, headings and the text 
 * <kbd>⌘</kbd><kbd>C</kbd> Copy a link to the note.
 * <kbd>⌘</kbd><kbd>Y</kbd> Quick Look the note.
 
-A matching heading gets its own row, which opens the note at that heading and links to it (`[[Note#Heading]]`). Links follow the vault’s “Use [[Wikilinks]]” setting.
+A heading that matches gets its own row (when its note’s name doesn’t already match), which opens the note at that heading and links to it (`[[Note#Heading]]`). Links follow the vault’s “Use [[Wikilinks]]” setting.
 
 Narrow the search while you type:
 
@@ -70,6 +70,8 @@ Templates can use Obsidian’s `{{title}}`, `{{date}}`, `{{time}}`, `{{date:YYYY
 
 Alternatively, turn selected text into a new note via the Universal Action. Its first line becomes the title.
 
+![Creating a note from selected text](images/new-ua.png)
+
 ### Attachments
 
 Find images, PDFs, audio, video and other files in your vaults via the `obm` keyword. Filter with `image`, `pdf`, `audio`, `video` or an extension like `.png`.
@@ -106,6 +108,8 @@ The first row opens a random note from any vault.
 ### Search Selected Text
 
 Search your vaults for selected text via the Universal Action, or configure the Hotkey to start a search.
+
+![Searching for selected text with the Universal Action](images/search-ua.png)
 
 ### Configuration
 
