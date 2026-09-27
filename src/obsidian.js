@@ -565,7 +565,8 @@ function bulkAvailable() {
   }
   return BULK;
 }
-const A_RETURNED = 0x80000000, A_ERROR = 0x20000000, A_NAME = 0x1, A_TYPE = 0x8, A_CRTIME = 0x200, A_MODTIME = 0x400, F_DATALENGTH = 0x200;
+const A_RETURNED = 0x80000000, A_ERROR = 0x20000000, A_NAME = 0x1, A_TYPE = 0x8, A_CRTIME = 0x200, A_MODTIME = 0x400, A_FLAGS = 0x40000, F_DATALENGTH = 0x200;
+const SF_DATALESS = 0x40000000;
 const VREG = 1, VDIR = 2;
 function u32bytes(v) {
   return [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
@@ -573,7 +574,7 @@ function u32bytes(v) {
 let ATTRLIST = null;
 function attrList() {
   if (!ATTRLIST) {
-    const common = A_RETURNED | A_ERROR | A_NAME | A_TYPE | A_CRTIME | A_MODTIME;
+    const common = A_RETURNED | A_ERROR | A_NAME | A_TYPE | A_CRTIME | A_MODTIME | A_FLAGS;
     const bytes = [5, 0, 0, 0, ...u32bytes(common), ...u32bytes(0), ...u32bytes(0), ...u32bytes(F_DATALENGTH), ...u32bytes(0)];
     ATTRLIST = $(String.fromCharCode(...bytes)).dataUsingEncoding($.NSISOLatin1StringEncoding).mutableCopy;
   }
@@ -618,8 +619,9 @@ function bulkRead(dir) {
           const type = u32(o);
           const created = time(o + 4);
           const modified = time(o + 20);
-          const fsize = retFile & F_DATALENGTH ? u32(o + 36) + u32(o + 40) * 4294967296 : 0;
-          out.push({ name, type, created, modified, size: fsize });
+          const flags = u32(o + 36);
+          const fsize = retFile & F_DATALENGTH ? u32(o + 40) + u32(o + 44) * 4294967296 : 0;
+          out.push({ name, type, created, modified, size: fsize, dataless: (flags & SF_DATALESS) !== 0 });
         }
         p += len;
       }
@@ -682,6 +684,7 @@ function walkVault(root) {
       if (r.type === VDIR) queue.push(p);
       else if (r.type === VREG) {
         const e = { p, m: Math.floor(r.modified), s: r.size, c: Math.floor(r.created) };
+        if (r.dataless) e.d = 1; // in iCloud only: reading it would download it
         (NOTE_EXT.has(extOf(r.name)) ? notes : media).push(e);
       }
     }
@@ -808,7 +811,7 @@ function buildIndex(v) {
   const changed = [];
   const notes = scan.notes.map((f) => {
     const o = old.get(f.p);
-    if (o && !o.x && o.m === f.m && o.s === f.s) return o;
+    if (o && !o.x && o.m === f.m && o.s === f.s && !o.d === !f.d) return o;
     changed.push(f);
     return Object.assign({ w: 0, a: [], t: [], h: [], x: 1 }, f);
   });
@@ -841,7 +844,7 @@ function buildIndex(v) {
     const n = byPath.get(f.p);
     delete n.x;
     lines.delete(f.p);
-    if (extOf(f.p) !== "md") continue;
+    if (extOf(f.p) !== "md" || f.d) continue;
     const text = readFile(`${v.path}/${f.p}`);
     if (text === null) continue;
     const info = parseNote(text);
@@ -1075,21 +1078,23 @@ function fuzzy(hay, w) {
   return j === w.length;
 }
 
+// #tag matches the tag and its nested tags (#tag/sub); the tag still being typed matches by prefix
 function parseSearch(q) {
   const tokens = q.trim().split(/\s+/).filter(Boolean);
+  const typing = !/\s$/.test(q);
   const tags = [], folders = [], words = [];
-  for (const t of tokens) {
-    if (t.length > 1 && t.startsWith("#")) tags.push(fold(t.slice(1)).replace(/\/+$/, ""));
+  tokens.forEach((t, i) => {
+    if (t.length > 1 && t.startsWith("#")) tags.push({ tag: fold(t.slice(1)).replace(/\/+$/, ""), prefix: typing && i === tokens.length - 1 });
     else if (t.length > 1 && t.startsWith("/")) folders.push(fold(t.slice(1)).replace(/\/+$/, ""));
     else words.push(t);
-  }
+  });
   return { tags, folders, words };
 }
 
 function passesFilters(n, tags, folders) {
-  for (const t of tags) {
+  for (const { tag, prefix } of tags) {
     if (!n.ft) n.ft = n.t.map(fold);
-    if (!n.ft.some((x) => x === t || x.startsWith(t))) return false;
+    if (!n.ft.some((x) => x === tag || x.startsWith(prefix ? tag : tag + "/"))) return false;
   }
   for (const f of folders) {
     const fp = fold(n.folder);
@@ -1303,7 +1308,7 @@ function searchItems(rawQuery) {
     }
     if (!items.length) {
       if (inAppend) items.push(info("No matching notes", "Type part of a note’s name before “>”", "empty"));
-      else items.push(newNoteSuggestion(query, words, only || primaryVault(all, cfg), cfg));
+      else items.push(newNoteSuggestion(query, only || primaryVault(all, cfg), cfg));
     }
   }
   if (building) {
@@ -1314,11 +1319,12 @@ function searchItems(rawQuery) {
 }
 
 // "No results" offers to create the note, like Obsidian's quick switcher
-function newNoteSuggestion(query, words, v, cfg) {
-  const title = sanitizeTitle(query.trim().split(/\s+/).filter((t) => !t.startsWith("#") && !t.startsWith("/") && !t.startsWith("@")).join(" "));
-  if (!v || !title) return info("No matching notes", "Try fewer words, or search for a tag with #", "empty");
-  const rel = uniqueRel(v, newNoteFolder(v, cfg), title);
-  const act = { ob_action: "create", ob_vault: v.path, ob_rel: rel, ob_template: defaultTemplate(v, cfg), ob_content: "", ob_tags: "", ob_open: "1" };
+function newNoteSuggestion(query, v, cfg) {
+  const words = query.trim().split(/\s+/).filter((t) => !t.startsWith("/") && !(t.startsWith("@") && t !== "@"));
+  const p = v ? parseNew(words.join(" "), [v], cfg) : null;
+  if (!p || !p.title) return info("No matching notes", "Try fewer words, or search for a tag with #", "empty");
+  const rel = uniqueRel(v, p.folder, p.title);
+  const act = { ob_action: "create", ob_vault: v.path, ob_rel: rel, ob_template: defaultTemplate(v, cfg), ob_content: "", ob_tags: p.tags.join("\n"), ob_open: "1" };
   return {
     title: oneLine(`Create “${stripExt(basename(rel))}”`),
     subtitle: oneLine(`No matching notes · ↩ Create ${rel}${multiVault() ? " in " + v.name : ""}`),
@@ -1538,17 +1544,20 @@ function createNote(v, rel, opts) {
   text = addTags(text, opts.tags || []);
   if (text && !text.endsWith("\n")) text += "\n";
   mkdirs(dirname(abs));
-  if (!FM.createFileAtPathContentsAttributes(abs, $(text).dataUsingEncoding($.NSUTF8StringEncoding), $())) {
-    return `Couldn’t create ${quoted(rel)}`;
+  // NSDataWritingWithoutOverwriting: fails instead of replacing a file created meanwhile
+  if (!$(text).dataUsingEncoding($.NSUTF8StringEncoding).writeToFileOptionsError(abs, 2, $())) {
+    return exists(abs) ? "" : `Couldn’t create ${quoted(rel)}`;
   }
+  opts.created = true;
   return "";
 }
 
 function ensureDaily(v, d) {
   const rel = dailyRel(v, d);
   const c = vconf(v).daily;
-  const err = createNote(v, rel, { template: c.template, date: d, dateFormat: c.format });
-  return { rel, err };
+  const opts = { template: c.template, date: d, dateFormat: c.format };
+  const err = createNote(v, rel, opts);
+  return { rel, err, created: !!opts.created };
 }
 
 const DATE_WORDS = { today: 0, yesterday: -1, tomorrow: 1 };
@@ -1716,7 +1725,7 @@ function mediaItems(q) {
         cmd: mod(embed, `Paste ${embed} into the frontmost app`, act("paste")),
         alt: mod(abs, "Reveal in Finder", act("reveal")),
         ctrl: mod(abs, "Copy the file to the clipboard", act("copy-file")),
-        shift: mod(abs, "Open in the default app for this file type", act("default-app")),
+        shift: mod(abs, `Open in ${PANE_WORDS[OTHER_PANE[cfg.pane]]}`, act("open", { ob_pane: OTHER_PANE[cfg.pane] })),
         fn: mod(abs, "Open in the default app for this file type", act("default-app")),
         "cmd+alt": mod(uri, "Copy the Obsidian URI", act("copy", { ob_text: uri })),
         "cmd+shift": mod(abs, "Copy a Markdown link to the Obsidian URI", act("copy", { ob_text: `[${basename(f.p).replace(/([\[\]])/g, "\\$1")}](${uri})` })),
@@ -1858,7 +1867,7 @@ function copyText(s) {
   return pb.setStringForType($(s), $.NSPasteboardTypeString);
 }
 
-// Is path inside root (no "..", symlinks in the parent resolved)?
+// Is path inside root? (built from root + a relative path: no "." or ".." parts allowed)
 function inside(root, path) {
   if (/(^|\/)\.\.?(\/|$)/.test(path.slice(root.length))) return false;
   return path.startsWith(root + "/");
@@ -1995,7 +2004,7 @@ function doAction(arg) {
   switch (action) {
     case "open": {
       if (needVault()) return needVault();
-      if (!exists(`${v.path}/${rel}`)) return `${quoted(basename(rel))} no longer exists`;
+      if (!inside(v.path, `${v.path}/${rel}`) || !exists(`${v.path}/${rel}`)) return `${quoted(basename(rel))} no longer exists`;
       return openNote(v, rel, pane, env("ob_heading", ""));
     }
     case "reveal": {
@@ -2041,10 +2050,9 @@ function doAction(arg) {
       if (!v) v = primaryVault(vaults().list, cfg);
       if (needVault()) return needVault();
       const d = parseDay(env("ob_date", "")) || today();
-      const { rel: drel, err } = ensureDaily(v, d);
+      const { rel: drel, err, created } = ensureDaily(v, d);
       if (err) return err;
       if (action === "daily-open") {
-        const created = mtime(`${v.path}/${drel}`) > now() - 2;
         if (created) {
           reopenIndex();
           settle();
@@ -2135,6 +2143,17 @@ function doAction(arg) {
   }
 }
 
+// Every modifier is connected to an action, so a row without its own entry for one would run
+// its ↩ action; make such modifiers do nothing instead (the subtitle stays).
+const ALL_MODS = ["cmd", "alt", "ctrl", "shift", "fn", "cmd+alt", "cmd+shift"];
+function fillMods(items) {
+  for (const it of items) {
+    if (it.valid === false) continue;
+    it.mods = it.mods || {};
+    for (const k of ALL_MODS) if (!it.mods[k]) it.mods[k] = { arg: it.arg || "", subtitle: it.subtitle || "", valid: false };
+  }
+}
+
 // ---------- entry ----------
 
 function run(argv) {
@@ -2160,6 +2179,7 @@ function run(argv) {
       default: res = { items: [info(`Unknown command: ${cmd}`, "", "error")] };
     }
     stableUids(res.items || []);
+    fillMods(res.items || []);
     return JSON.stringify(Object.assign({ skipknowledge: true }, res));
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);

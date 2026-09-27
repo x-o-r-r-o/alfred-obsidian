@@ -247,6 +247,8 @@ class SearchTests(Base):
         self.assertEqual(self.titles("search", "#123 "), ["No matching notes"])  # numbers aren't tags
         self.assertEqual(self.titles("search", "#code "), ["No matching notes"])  # inline code
         self.assertEqual(self.titles("search", "#project fox"), ["Plan"])
+        self.assertEqual(self.titles("search", "#shop "), ["No matching notes"])  # a finished tag matches exactly or nested
+        self.assertEqual(self.titles("search", "#proj"), ["#project/alpha", "Plan"])  # while typing: by prefix
 
     def test_tag_suggestions(self):
         items = self.items("search", "#sh")
@@ -254,7 +256,7 @@ class SearchTests(Base):
         self.assertEqual(items[0]["autocomplete"], "#shopping/weekly ")
         self.assertFalse(items[0]["valid"])
         self.assertEqual(items[1]["title"], "Shopping List")
-        self.assertEqual(self.items("search", "#sh ")[0]["title"], "Shopping List")  # a space ends the tag
+        self.assertEqual(self.items("search", "#shopping/weekly ")[0]["title"], "Shopping List")  # a space ends the tag
 
     def test_folder_and_vault_filters(self):
         self.assertEqual(self.titles("search", "/projects"), ["Zürich Trip", "Plan"])
@@ -286,6 +288,10 @@ class SearchTests(Base):
         self.assertEqual(it["variables"]["ob_action"], "create")
         self.assertEqual(it["variables"]["ob_rel"], "brand new idea.md")
         self.assertEqual(it["variables"]["ob_vault"], self.personal)
+        it = self.items("search", "Inbox/../../x #todo")[0]
+        self.assertEqual(it["title"], "Create “x”")
+        self.assertEqual(it["variables"]["ob_rel"], "Inbox/x.md")
+        self.assertEqual(it["variables"]["ob_tags"], "todo")
 
     def test_append_mode(self):
         items = self.items("search", "shopping > oat milk")
@@ -630,6 +636,9 @@ class NewNoteTests(Base):
         self.assertEqual(it["mods"]["shift"]["variables"]["ob_open"], "0")
         self.assertEqual(it["mods"]["alt"]["variables"]["ob_clipboard"], "1")
         self.assertFalse(it["mods"]["cmd"]["valid"])
+        # modifiers a row has no use for do nothing, instead of running ↩
+        for k in ("fn", "cmd+alt", "cmd+shift"):
+            self.assertFalse(it["mods"][k]["valid"], k)
 
     def test_default_template_and_folder_settings(self):
         items = self.items("new", "Sync", new_note_template="meeting", new_note_folder="Inbox/Sub")
